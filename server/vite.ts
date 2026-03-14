@@ -1,29 +1,23 @@
+import { type Express } from "express";
 import { createServer as createViteServer, createLogger } from "vite";
-import type { Express } from "express";
-import type { Server } from "http";
+import { type Server } from "http";
+import viteConfig from "../vite.config";
+import fs from "fs";
 import path from "path";
+import { nanoid } from "nanoid";
 
 const viteLogger = createLogger();
 
-export function log(message: string, source = "express") {
-  const formattedTime = new Date().toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
+export async function setupVite(server: Server, app: Express) {
+  const serverOptions = {
+    middlewareMode: true,
+    hmr: { server, path: "/vite-hmr" },
+    allowedHosts: true as const,
+  };
 
-  console.log(`${formattedTime} [${source}] ${message}`);
-}
-
-export async function setupVite(httpServer: Server, app: Express) {
   const vite = await createViteServer({
-    server: {
-      middlewareMode: true,
-      hmr: { server: httpServer },
-      allowedHosts: true,
-    },
-    appType: "custom",
+    ...viteConfig,
+    configFile: false,
     customLogger: {
       ...viteLogger,
       error: (msg, options) => {
@@ -31,30 +25,31 @@ export async function setupVite(httpServer: Server, app: Express) {
         process.exit(1);
       },
     },
+    server: serverOptions,
+    appType: "custom",
   });
 
   app.use(vite.middlewares);
-  app.use("*", async (req, res, next) => {
+
+  app.use(async (req, res, next) => {
     const url = req.originalUrl;
 
     try {
       const clientTemplate = path.resolve(
         import.meta.dirname,
-        "../client",
+        "..",
+        "client",
         "index.html",
       );
 
-      let template = await vite.transformIndexHtml(url, 
-        await import("fs").then((fs) => fs.promises.readFile(clientTemplate, "utf-8"))
+      // always reload the index.html file from disk incase it changes
+      let template = await fs.promises.readFile(clientTemplate, "utf-8");
+      template = template.replace(
+        `src="/src/main.tsx"`,
+        `src="/src/main.tsx?v=${nanoid()}"`,
       );
-
-      const html = template
-        .replace(
-          `<!--app-html-->`,
-          `<div id="root"></div>`,
-        );
-
-      res.status(200).set({ "Content-Type": "text/html" }).end(html);
+      const page = await vite.transformIndexHtml(url, template);
+      res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);
       next(e);
