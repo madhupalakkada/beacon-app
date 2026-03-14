@@ -98,36 +98,39 @@ export default function ForgotPasswordPage() {
               </div>
               <h2 className="font-semibold text-lg">Forgot password?</h2>
               <p className="text-sm text-muted-foreground mt-1">
-                Enter your email address and we'll look up your account.
+                Enter your email address and we'll help you set a new password.
               </p>
             </div>
+
             <form onSubmit={handleVerifyEmail} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-sm font-medium">Email address</Label>
+                <Label htmlFor="reset-email" className="text-sm font-medium">Email address</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
-                    id="email"
+                    id="reset-email"
                     type="email"
                     placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-10"
                     required
-                    data-testid="input-email"
+                    autoFocus
+                    data-testid="input-reset-email"
                   />
                 </div>
               </div>
+
               <Button
                 type="submit"
                 disabled={isSubmitting || !email.trim()}
                 className="w-full gap-2"
-                data-testid="submit-verify-email"
+                data-testid="btn-verify-email"
               >
                 {isSubmitting ? (
                   <span className="flex items-center gap-2">
                     <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                    Looking up account...
+                    Verifying...
                   </span>
                 ) : (
                   <>
@@ -137,10 +140,27 @@ export default function ForgotPasswordPage() {
                 )}
               </Button>
             </form>
+
+            <div className="mt-4 text-center space-y-2">
+              <Link href="/">
+                <span className="text-sm text-primary hover:underline cursor-pointer inline-flex items-center gap-1" data-testid="link-back-login">
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  Back to sign in
+                </span>
+              </Link>
+              <p className="text-xs text-muted-foreground">
+                Don't have an account?{" "}
+                <Link href="/">
+                  <span className="text-primary hover:underline cursor-pointer" data-testid="link-create-account">
+                    Create one
+                  </span>
+                </Link>
+              </p>
+            </div>
           </>
         )}
 
-        {/* Step 2: Reset password */}
+        {/* Step 2: Set new password */}
         {step === "reset" && (
           <>
             <div className="text-center mb-6">
@@ -149,62 +169,72 @@ export default function ForgotPasswordPage() {
               </div>
               <h2 className="font-semibold text-lg">Set new password</h2>
               <p className="text-sm text-muted-foreground mt-1">
-                Hi <strong>{displayName}</strong>, choose a new password for your account.
+                Hi {displayName}, choose a new password for your account.
               </p>
             </div>
+
             <form onSubmit={handleResetPassword} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="newPassword" className="text-sm font-medium">New password</Label>
+                <Label htmlFor="new-password" className="text-sm font-medium">New password</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
-                    id="newPassword"
+                    id="new-password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="At least 6 characters"
+                    placeholder="Create a new password (min 6 chars)"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="pl-10 pr-10"
                     required
                     minLength={6}
+                    autoFocus
                     data-testid="input-new-password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    data-testid="toggle-new-password-visibility"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword" className="text-sm font-medium">Confirm password</Label>
+                <Label htmlFor="confirm-password" className="text-sm font-medium">Confirm password</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
-                    id="confirmPassword"
+                    id="confirm-password"
                     type={showConfirm ? "text" : "password"}
-                    placeholder="Repeat your new password"
+                    placeholder="Re-enter your new password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="pl-10 pr-10"
                     required
+                    minLength={6}
                     data-testid="input-confirm-password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirm(!showConfirm)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    data-testid="toggle-confirm-password-visibility"
                   >
                     {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+                {confirmPassword.length > 0 && newPassword !== confirmPassword && (
+                  <p className="text-xs text-destructive" data-testid="password-mismatch-error">Passwords do not match</p>
+                )}
               </div>
+
               <Button
                 type="submit"
-                disabled={isSubmitting || !newPassword || !confirmPassword}
+                disabled={isSubmitting || !newPassword || !confirmPassword || newPassword !== confirmPassword}
                 className="w-full gap-2"
-                data-testid="submit-reset-password"
+                data-testid="btn-reset-password"
               >
                 {isSubmitting ? (
                   <span className="flex items-center gap-2">
@@ -213,52 +243,46 @@ export default function ForgotPasswordPage() {
                   </span>
                 ) : (
                   <>
-                    <Lock className="w-4 h-4" />
+                    <KeyRound className="w-4 h-4" />
                     Update password
                   </>
                 )}
               </Button>
             </form>
-            <button
-              type="button"
-              onClick={() => setStep("email")}
-              className="mt-4 w-full text-xs text-muted-foreground hover:text-foreground flex items-center justify-center gap-1"
-              data-testid="back-to-email"
-            >
-              <ArrowLeft className="w-3 h-3" />
-              Use a different email
-            </button>
+
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                onClick={() => { setStep("email"); setNewPassword(""); setConfirmPassword(""); }}
+                className="text-sm text-primary hover:underline inline-flex items-center gap-1"
+                data-testid="link-back-email-step"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Use a different email
+              </button>
+            </div>
           </>
         )}
 
-        {/* Step 3: Done */}
+        {/* Step 3: Success */}
         {step === "done" && (
           <div className="text-center py-4">
-            <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
+            <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <h2 className="font-semibold text-lg mb-2">Password updated!</h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              Your password has been successfully reset. You can now sign in with your new password.
+            <h2 className="font-semibold text-lg" data-testid="reset-success-heading">Password updated</h2>
+            <p className="text-sm text-muted-foreground mt-2 mb-6">
+              Your password has been successfully changed. You can now sign in with your new password.
             </p>
-            <Link href="/login">
-              <Button className="w-full gap-2" data-testid="go-to-login">
-                <LogIn className="w-4 h-4" />
-                Sign in now
+            <Link href="/">
+              <Button className="w-full gap-2" data-testid="btn-go-to-login">
+                <ArrowLeft className="w-4 h-4" />
+                Back to sign in
               </Button>
             </Link>
           </div>
         )}
       </Card>
-
-      <div className="mt-6">
-        <Link href="/login">
-          <span className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer" data-testid="link-back-to-login">
-            <ArrowLeft className="w-3 h-3" />
-            Back to sign in
-          </span>
-        </Link>
-      </div>
     </div>
   );
 }

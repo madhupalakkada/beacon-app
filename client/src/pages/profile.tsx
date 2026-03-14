@@ -1,222 +1,239 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useAuth } from "@/lib/auth";
-import PostCard from "@/components/post-card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { useParams } from "wouter";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Flame, Heart, Gift, MapPin, Calendar, Pencil, X, Check } from "lucide-react";
+import PostCard from "@/components/post-card";
+import { useAuth } from "@/lib/auth";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { User, Settings, LogOut, Camera, Star, Smile, Coins, Edit3, Check, X } from "lucide-react";
+
+function getInitials(name: string): string {
+  return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+}
 
 export default function Profile() {
-  const { user, logout } = useAuth();
+  const params = useParams<{ id: string }>();
+  const userId = params.id;
+  const { user: currentUser } = useAuth();
   const { toast } = useToast();
-  const [editingName, setEditingName] = useState(false);
-  const [editingBio, setEditingBio] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newBio, setNewBio] = useState("");
+  const isOwnProfile = currentUser?.id === userId;
 
-  const { data: posts, isLoading: postsLoading } = useQuery<any[]>({
-    queryKey: ["/api/posts", user?.id],
-    queryFn: async () => {
-      const res = await apiRequest("GET", `/api/posts?userId=${user?.id}`);
-      return res.json();
-    },
-    enabled: !!user?.id,
+  const [editing, setEditing] = useState(false);
+  const [editBio, setEditBio] = useState("");
+  const [editLocation, setEditLocation] = useState("");
+
+  const { data, isLoading } = useQuery<{ user: any; posts: any[] }>({
+    queryKey: ["/api/users", userId],
   });
 
-  const updateProfileMutation = useMutation({
-    mutationFn: async (data: { displayName?: string; bio?: string }) => {
-      const res = await apiRequest("PATCH", `/api/users/${user?.id}`, data);
+  const updateMutation = useMutation({
+    mutationFn: async (updates: { bio?: string; location?: string }) => {
+      const res = await apiRequest("PATCH", `/api/users/${userId}`, updates);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users", userId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/leaderboard"] });
       toast({ title: "Profile updated", description: "Your changes have been saved." });
-      setEditingName(false);
-      setEditingBio(false);
+      setEditing(false);
     },
-    onError: (err: any) => {
-      toast({ title: "Update failed", description: err?.message || "Something went wrong.", variant: "destructive" });
+    onError: () => {
+      toast({ title: "Error", description: "Could not update profile.", variant: "destructive" });
     },
   });
 
-  const u = user as any;
+  const startEditing = () => {
+    setEditBio(data?.user?.bio || "");
+    setEditLocation(data?.user?.location || "");
+    setEditing(true);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6" data-testid="profile-loading">
+        <Skeleton className="h-48 rounded-2xl" />
+        <Skeleton className="h-8" />
+        <Skeleton className="h-40 rounded-xl" />
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="text-center py-12" data-testid="profile-not-found">
+        <p className="text-muted-foreground">User not found</p>
+      </div>
+    );
+  }
+
+  const { user, posts } = data;
 
   return (
-    <div className="space-y-5" data-testid="profile-page">
+    <div className="space-y-6" data-testid="profile-page">
       {/* Profile header */}
-      <div className="rounded-2xl border border-border p-5">
-        <div className="flex items-start gap-4">
-          {/* Avatar */}
-          <div className="relative shrink-0">
-            <div className="w-16 h-16 rounded-full bg-primary/10 overflow-hidden">
-              {u?.avatarUrl ? (
-                <img src={u.avatarUrl} alt={u.displayName} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <User className="w-7 h-7 text-primary" />
-                </div>
-              )}
-            </div>
-            <button
-              className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-sm"
-              data-testid="avatar-edit-btn"
-            >
-              <Camera className="w-3 h-3" />
-            </button>
-          </div>
+      <Card className="p-6 border border-border/60 text-center relative">
+        {isOwnProfile && !editing && (
+          <button
+            onClick={startEditing}
+            className="absolute top-4 right-4 p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+            data-testid="edit-profile-btn"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+        )}
 
-          {/* Name / username / bio */}
-          <div className="flex-1 min-w-0">
-            {/* Display name */}
-            {editingName ? (
-              <div className="flex items-center gap-2 mb-1">
-                <Input
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  className="h-7 text-sm font-semibold px-2"
-                  autoFocus
-                  data-testid="input-display-name"
-                />
-                <button
-                  onClick={() => updateProfileMutation.mutate({ displayName: newName.trim() })}
-                  className="text-primary"
-                  disabled={!newName.trim()}
-                  data-testid="save-name-btn"
-                >
-                  <Check className="w-4 h-4" />
-                </button>
-                <button onClick={() => setEditingName(false)} className="text-muted-foreground" data-testid="cancel-name-btn">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 mb-0.5">
-                <p className="font-semibold text-base truncate">{u?.displayName}</p>
-                <button
-                  onClick={() => { setNewName(u?.displayName ?? ""); setEditingName(true); }}
-                  className="text-muted-foreground hover:text-foreground shrink-0"
-                  data-testid="edit-name-btn"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-
-            <p className="text-xs text-muted-foreground">@{u?.username}</p>
-
-            {/* Bio */}
-            {editingBio ? (
-              <div className="mt-2 space-y-1">
-                <Input
-                  value={newBio}
-                  onChange={(e) => setNewBio(e.target.value)}
-                  placeholder="Add a bio..."
-                  className="h-7 text-xs px-2"
-                  autoFocus
-                  data-testid="input-bio"
-                />
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => updateProfileMutation.mutate({ bio: newBio.trim() })}
-                    className="text-xs text-primary"
-                    data-testid="save-bio-btn"
-                  >
-                    Save
-                  </button>
-                  <button onClick={() => setEditingBio(false)} className="text-xs text-muted-foreground" data-testid="cancel-bio-btn">
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-2 flex items-start gap-1">
-                <p className="text-xs text-muted-foreground">{u?.bio || "No bio yet"}</p>
-                <button
-                  onClick={() => { setNewBio(u?.bio ?? ""); setEditingBio(true); }}
-                  className="text-muted-foreground hover:text-foreground shrink-0 mt-0.5"
-                  data-testid="edit-bio-btn"
-                >
-                  <Edit3 className="w-3 h-3" />
-                </button>
-              </div>
-            )}
-          </div>
+        <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-2xl mx-auto" data-testid="profile-avatar">
+          {getInitials(user.displayName)}
         </div>
+        <h1 className="font-bold text-lg mt-4" data-testid="profile-name">{user.displayName}</h1>
+        <p className="text-sm text-muted-foreground">@{user.username}</p>
 
-        {/* Stats row */}
-        <div className="grid grid-cols-3 gap-3 mt-5">
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-1 mb-0.5">
-              <Smile className="w-3.5 h-3.5 text-primary" />
-              <span className="font-bold text-base">{posts?.length ?? 0}</span>
+        {editing ? (
+          <div className="mt-4 space-y-3 max-w-xs mx-auto text-left">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Bio</label>
+              <Textarea
+                placeholder="Tell others about yourself..."
+                value={editBio}
+                onChange={(e) => setEditBio(e.target.value)}
+                className="min-h-[60px] resize-none text-sm"
+                data-testid="edit-bio"
+              />
             </div>
-            <p className="text-xs text-muted-foreground">Smiles</p>
-          </div>
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-1 mb-0.5">
-              <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
-              <span className="font-bold text-base">{u?.likesReceived ?? 0}</span>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                <MapPin className="w-3 h-3" /> Location
+              </label>
+              <Input
+                placeholder="Your city or region"
+                value={editLocation}
+                onChange={(e) => setEditLocation(e.target.value)}
+                className="text-sm"
+                data-testid="edit-location"
+              />
             </div>
-            <p className="text-xs text-muted-foreground">Likes</p>
-          </div>
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-1 mb-0.5">
-              <Coins className="w-3.5 h-3.5 text-yellow-600" />
-              <span className="font-bold text-base">{u?.coins ?? 0}</span>
+            <div className="flex gap-2 justify-end pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditing(false)}
+                className="gap-1 text-xs"
+                data-testid="cancel-edit"
+              >
+                <X className="w-3 h-3" /> Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => updateMutation.mutate({ bio: editBio.trim() || null, location: editLocation.trim() || null } as any)}
+                disabled={updateMutation.isPending}
+                className="gap-1 text-xs"
+                data-testid="save-edit"
+              >
+                <Check className="w-3 h-3" /> {updateMutation.isPending ? "Saving..." : "Save"}
+              </Button>
             </div>
-            <p className="text-xs text-muted-foreground">Coins</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Settings row */}
-      <div className="flex gap-3">
-        <Button variant="outline" size="sm" className="flex-1 gap-2 text-xs" data-testid="settings-btn">
-          <Settings className="w-3.5 h-3.5" />
-          Settings
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex-1 gap-2 text-xs text-destructive hover:text-destructive"
-          onClick={logout}
-          data-testid="logout-btn"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          Sign out
-        </Button>
-      </div>
-
-      {/* My posts */}
-      <div className="space-y-4">
-        <h2 className="font-semibold text-sm flex items-center gap-2">
-          <Smile className="w-4 h-4 text-primary" />
-          My Smiles
-        </h2>
-        {postsLoading ? (
-          <div className="space-y-4">
-            {[1, 2].map((i) => (
-              <div key={i} className="rounded-xl border border-border overflow-hidden">
-                <Skeleton className="h-14 m-4" />
-                <Skeleton className="aspect-[3/2]" />
-                <Skeleton className="h-20 m-4" />
-              </div>
-            ))}
-          </div>
-        ) : posts && posts.length > 0 ? (
-          <div className="space-y-4">
-            {posts.map((post: any) => (
-              <PostCard key={post.id} post={post} />
-            ))}
           </div>
         ) : (
-          <div className="text-center py-10">
-            <Smile className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">No smiles shared yet.</p>
+          <>
+            {user.bio && (
+              <p className="text-sm text-muted-foreground mt-2 max-w-xs mx-auto" data-testid="profile-bio">{user.bio}</p>
+            )}
+            {user.location && (
+              <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mt-2">
+                <MapPin className="w-3 h-3" />
+                <span data-testid="profile-location">{user.location}</span>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-4 mt-6">
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-1 text-lg font-bold text-primary">
+              <Heart className="w-4 h-4" />
+              {user.totalSmiles ?? 0}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">Smiles</p>
+          </div>
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-1 text-lg font-bold text-amber-600 dark:text-amber-400">
+              <Flame className="w-4 h-4" />
+              {user.smileStreak ?? 0}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">Day Streak</p>
+          </div>
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-1 text-lg font-bold text-emerald-600 dark:text-emerald-400">
+              <Gift className="w-4 h-4" />
+              {user.tipsReceived ?? 0}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">Tips</p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Achievements */}
+      <div>
+        <h2 className="text-sm font-semibold mb-3">Achievements</h2>
+        <div className="flex gap-2 flex-wrap">
+          {(user.smileStreak ?? 0) >= 7 && (
+            <Badge variant="secondary" className="gap-1 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+              <Flame className="w-3 h-3" /> 7-Day Streak
+            </Badge>
+          )}
+          {(user.smileStreak ?? 0) >= 14 && (
+            <Badge variant="secondary" className="gap-1 bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
+              <Flame className="w-3 h-3" /> 14-Day Streak
+            </Badge>
+          )}
+          {(user.smileStreak ?? 0) >= 30 && (
+            <Badge variant="secondary" className="gap-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+              <Flame className="w-3 h-3" /> 30-Day Streak
+            </Badge>
+          )}
+          {(user.totalSmiles ?? 0) >= 50 && (
+            <Badge variant="secondary" className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+              <Heart className="w-3 h-3" /> 50+ Smiles
+            </Badge>
+          )}
+          {(user.totalSmiles ?? 0) >= 100 && (
+            <Badge variant="secondary" className="gap-1 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+              <Heart className="w-3 h-3" /> Century Smiler
+            </Badge>
+          )}
+          {(user.tipsReceived ?? 0) >= 10 && (
+            <Badge variant="secondary" className="gap-1 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+              <Gift className="w-3 h-3" /> Appreciated
+            </Badge>
+          )}
+          {posts.length === 0 && (user.smileStreak ?? 0) < 7 && (
+            <p className="text-xs text-muted-foreground">Keep sharing to earn achievements.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Posts */}
+      <div>
+        <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5">
+          <Calendar className="w-4 h-4 text-muted-foreground" />
+          Gratitude Stories ({posts.length})
+        </h2>
+        {posts.length === 0 ? (
+          <Card className="p-8 border border-border/60 text-center">
+            <p className="text-sm text-muted-foreground">No stories shared yet.</p>
+          </Card>
+        ) : (
+          <div className="space-y-5">
+            {posts.map((post: any) => (
+              <PostCard key={post.id} post={{ ...post, user: { id: user.id, displayName: user.displayName, username: user.username, avatar: user.avatar, smileStreak: user.smileStreak } }} />
+            ))}
           </div>
         )}
       </div>

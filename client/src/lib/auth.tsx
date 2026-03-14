@@ -1,78 +1,93 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
-import type { Profile } from "@shared/schema";
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { apiRequest, queryClient, setAuthToken, getAuthToken } from "./queryClient";
 
-const API_BASE = "";
+export interface AuthUser {
+  id: string;
+  username: string;
+  displayName: string;
+  email: string | null;
+  avatar: string | null;
+  bio: string | null;
+  location: string | null;
+  smileStreak: number;
+  totalSmiles: number;
+  tipsReceived: number;
+}
 
 interface AuthContextType {
-  user: Profile | null;
-  token: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, displayName: string, username: string) => Promise<void>;
-  logout: () => void;
+  user: AuthUser | null;
   isLoading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  register: (data: { email: string; password: string; displayName: string; username: string }) => Promise<void>;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<Profile | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Check session on mount
   useEffect(() => {
-    const savedToken = localStorage.getItem("beacon_token");
-    const savedUser = localStorage.getItem("beacon_user");
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
-    }
-    setIsLoading(false);
+    (async () => {
+      try {
+        const token = getAuthToken();
+        if (token) {
+          const res = await apiRequest("GET", "/api/auth/me");
+          const data = await res.json();
+          if (data.user) {
+            setUser(data.user);
+          }
+        }
+      } catch {
+        setAuthToken(null);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const res = await fetch(`${API_BASE}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
+  const login = useCallback(async (email: string, password: string) => {
+    const res = await apiRequest("POST", "/api/auth/login", { email, password });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Login failed");
+    if (data.token) {
+      setAuthToken(data.token);
+    }
     setUser(data.user);
-    setToken(data.token);
-    localStorage.setItem("beacon_token", data.token);
-    localStorage.setItem("beacon_user", JSON.stringify(data.user));
-  };
+    queryClient.clear();
+  }, []);
 
-  const register = async (email: string, password: string, displayName: string, username: string) => {
-    const res = await fetch(`${API_BASE}/api/auth/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, displayName, username }),
-    });
+  const register = useCallback(async (input: { email: string; password: string; displayName: string; username: string }) => {
+    const res = await apiRequest("POST", "/api/auth/register", input);
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Registration failed");
+    if (data.token) {
+      setAuthToken(data.token);
+    }
     setUser(data.user);
-    setToken(data.token);
-    localStorage.setItem("beacon_token", data.token);
-    localStorage.setItem("beacon_user", JSON.stringify(data.user));
-  };
+    queryClient.clear();
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(async () => {
+    try {
+      await apiRequest("POST", "/api/auth/logout");
+    } catch {
+      // ignore
+    }
+    setAuthToken(null);
     setUser(null);
-    setToken(null);
-    localStorage.removeItem("beacon_token");
-    localStorage.removeItem("beacon_user");
-  };
+    queryClient.clear();
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within AuthProvider");
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
 }
