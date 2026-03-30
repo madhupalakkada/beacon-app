@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Flame, Heart, Gift, MapPin, Calendar, Pencil, X, Check } from "lucide-react";
+import { Flame, Heart, MapPin, Calendar, Pencil, X, Check } from "lucide-react";
 import PostCard from "@/components/post-card";
 import { useAuth } from "@/lib/auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -154,7 +154,7 @@ export default function Profile() {
         )}
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mt-6">
+        <div className="grid grid-cols-2 gap-4 mt-6">
           <div className="text-center">
             <div className="flex items-center justify-center gap-1 text-lg font-bold text-primary">
               <Heart className="w-4 h-4" />
@@ -168,13 +168,6 @@ export default function Profile() {
               {user.smileStreak ?? 0}
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">Day Streak</p>
-          </div>
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-1 text-lg font-bold text-emerald-600 dark:text-emerald-400">
-              <Gift className="w-4 h-4" />
-              {user.tipsReceived ?? 0}
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">Tips</p>
           </div>
         </div>
       </Card>
@@ -206,11 +199,6 @@ export default function Profile() {
           {(user.totalSmiles ?? 0) >= 100 && (
             <Badge variant="secondary" className="gap-1 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
               <Heart className="w-3 h-3" /> Century Smiler
-            </Badge>
-          )}
-          {(user.tipsReceived ?? 0) >= 10 && (
-            <Badge variant="secondary" className="gap-1 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
-              <Gift className="w-3 h-3" /> Appreciated
             </Badge>
           )}
           {posts.length === 0 && (user.smileStreak ?? 0) < 7 && (

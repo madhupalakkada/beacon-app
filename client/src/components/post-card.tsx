@@ -1,10 +1,9 @@
-import { Heart, Gift, CheckCircle, MapPin, ImageOff } from "lucide-react";
+import { Heart, CheckCircle, MapPin, ImageOff } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { useState } from "react";
 import { Link } from "wouter";
@@ -25,7 +24,6 @@ interface PostData {
   gratitudeReason: string;
   category: string;
   likes: number;
-  tips: number;
   isVerified: boolean;
   createdAt: string;
   region: string | null;
@@ -62,11 +60,9 @@ const categoryColors: Record<string, string> = {
 };
 
 export default function PostCard({ post }: { post: PostData }) {
-  const { toast } = useToast();
   const { user: currentUser } = useAuth();
   const [liked, setLiked] = useState(false);
   const [localLikes, setLocalLikes] = useState(post.likes ?? 0);
-  const [localTips, setLocalTips] = useState(post.tips ?? 0);
   const [imgError, setImgError] = useState(false);
 
   const likeMutation = useMutation({
@@ -77,22 +73,6 @@ export default function PostCard({ post }: { post: PostData }) {
     onSuccess: () => {
       setLiked(true);
       setLocalLikes((prev) => prev + 1);
-      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
-    },
-  });
-
-  const tipMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/posts/${post.id}/tip`, {
-        fromUserId: currentUser?.id,
-        toUserId: post.userId,
-        amount: 1,
-      });
-      return res.json();
-    },
-    onSuccess: () => {
-      setLocalTips((prev) => prev + 1);
-      toast({ title: "Tip sent", description: "You sent a token of appreciation." });
       queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
     },
   });
@@ -168,7 +148,7 @@ export default function PostCard({ post }: { post: PostData }) {
           {post.gratitudeReason}
         </p>
 
-        {/* Actions */}
+        {/* Actions - Like only */}
         <div className="flex items-center gap-1 pt-1">
           <Button
             variant="ghost"
@@ -180,17 +160,6 @@ export default function PostCard({ post }: { post: PostData }) {
           >
             <Heart className={`w-4 h-4 transition-all ${liked ? "fill-red-500 scale-110" : ""}`} />
             {localLikes}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-1.5 text-xs text-muted-foreground hover:text-emerald-600"
-            onClick={() => tipMutation.mutate()}
-            disabled={tipMutation.isPending}
-            data-testid={`tip-btn-${post.id}`}
-          >
-            <Gift className="w-4 h-4" />
-            {localTips} tips
           </Button>
         </div>
       </div>
