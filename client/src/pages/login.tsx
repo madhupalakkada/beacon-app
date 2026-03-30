@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Mail, Lock, UserPlus, LogIn, Sparkles } from "lucide-react";
+import loginBg from "@assets/login-bg.jpg";
 
 export default function LoginPage() {
   const { login, register } = useAuth();
@@ -44,7 +45,13 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4" data-testid="login-page">
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 relative overflow-hidden" data-testid="login-page">
+      {/* Empathetic background image */}
+      <div className="absolute inset-0 z-0">
+        <img src={loginBg} alt="" className="w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/50 to-background/80" />
+      </div>
+      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen w-full">
       {/* Beacon branding */}
       <div className="text-center mb-8">
         <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center mx-auto mb-4">
@@ -53,13 +60,13 @@ export default function LoginPage() {
             <path d="M12 2v4M12 18v4M2 12h4M18 12h4M5.64 5.64l2.83 2.83M15.54 15.54l2.83 2.83M5.64 18.36l2.83-2.83M15.54 8.46l2.83-2.83" stroke="white" strokeWidth="2" strokeLinecap="round" />
           </svg>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight">Beacon</h1>
-        <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
+        <h1 className="text-2xl font-bold tracking-tight drop-shadow-sm">Beacon</h1>
+        <p className="text-sm text-foreground/70 mt-1 max-w-xs mx-auto drop-shadow-sm">
           Share gratitude, spread smiles, and brighten the world together.
         </p>
       </div>
 
-      <Card className="w-full max-w-sm p-6 border border-border/60" data-testid="login-card">
+      <Card className="w-full max-w-sm p-6 border border-border/60 bg-background/95 backdrop-blur-sm shadow-xl" data-testid="login-card">
         <div className="flex gap-2 mb-6">
           <button
             type="button"
@@ -201,10 +208,11 @@ export default function LoginPage() {
 
       {/* Tagline */}
       <div className="mt-8 text-center">
-        <p className="text-xs text-muted-foreground flex items-center justify-center gap-1.5">
+        <p className="text-xs text-foreground/70 flex items-center justify-center gap-1.5 drop-shadow-sm">
           <Sparkles className="w-3 h-3 text-primary" />
           Improving the happiness index of the world
         </p>
+      </div>
       </div>
     </div>
   );
