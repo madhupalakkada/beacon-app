@@ -16,7 +16,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { href: "/", label: "Feed", icon: Home },
     { href: "/create", label: "Post", icon: PlusCircle },
-    { href: "/leaderboard", label: "Top", icon: Trophy },
+    { href: "/leaderboard", label: "Bliss", icon: Trophy },
     { href: "/shop", label: "Shop", icon: ShoppingBag },
     { href: user ? `/profile/${user.id}` : "/", label: "Me", icon: User },
   ];
