@@ -254,6 +254,102 @@ export async function registerRoutes(
     }
   });
 
+  // Google OAuth - initiate
+  app.get("/api/auth/google", async (req, res) => {
+    try {
+      // Build the redirect URL based on the request origin
+      const origin = req.headers.origin || req.headers.referer?.replace(/\/$/, "") || `http://localhost:${process.env.PORT || 5000}`;
+      const redirectTo = `${origin}/api/auth/google/callback`;
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo },
+      });
+      if (error) return res.status(400).json({ error: error.message });
+      res.json({ url: data.url });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Google auth failed" });
+    }
+  });
+
+  // Google OAuth - callback (handles the redirect from Google/Supabase)
+  app.get("/api/auth/google/callback", async (req, res) => {
+    try {
+      // Supabase redirects with a hash fragment containing access_token
+      // We serve a small HTML page that extracts the token and sends it to the app
+      res.send(`<!DOCTYPE html>
+<html><head><title>Signing in...</title></head>
+<body>
+<script>
+  // Supabase puts tokens in the URL hash
+  const hash = window.location.hash.substring(1);
+  const params = new URLSearchParams(hash);
+  const accessToken = params.get('access_token');
+  if (accessToken) {
+    // Post the token to the parent/opener or redirect with token
+    window.location.href = '/#/google-callback?token=' + accessToken;
+  } else {
+    // Check query params as fallback
+    const qp = new URLSearchParams(window.location.search);
+    const code = qp.get('code');
+    if (code) {
+      window.location.href = '/#/google-callback?code=' + code;
+    } else {
+      document.body.innerHTML = '<p>Authentication failed. <a href="/">Go back</a></p>';
+    }
+  }
+</script>
+<p>Signing you in...</p>
+</body></html>`);
+    } catch {
+      res.redirect("/#/");
+    }
+  });
+
+  // Google OAuth - exchange token for user session
+  app.post("/api/auth/google/token", async (req, res) => {
+    try {
+      const { accessToken } = req.body;
+      if (!accessToken) return res.status(400).json({ error: "Token required" });
+
+      // Verify the token with Supabase
+      const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: `Bearer ${accessToken}` } },
+      });
+      const { data: userData, error: userError } = await userClient.auth.getUser(accessToken);
+      if (userError || !userData.user) {
+        return res.status(401).json({ error: "Invalid token" });
+      }
+
+      const authUser = userData.user;
+      // Check if profile exists
+      let profile = await storage.getProfile(authUser.id);
+      if (!profile) {
+        // Create profile from Google data
+        const email = authUser.email || "";
+        const displayName = authUser.user_metadata?.full_name || authUser.user_metadata?.name || email.split("@")[0];
+        const username = email.split("@")[0].toLowerCase().replace(/[^a-z0-9]/g, "") + Math.floor(Math.random() * 1000);
+
+        profile = await storage.createProfile({
+          id: authUser.id,
+          username,
+          display_name: displayName,
+          email,
+          avatar: authUser.user_metadata?.avatar_url || null,
+          bio: null,
+          location: null,
+        });
+      }
+
+      res.json({
+        user: normalizeProfile(profile),
+        token: accessToken,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Google auth failed" });
+    }
+  });
+
   // ═══ POSTS ═════════════════════════════════════════════
 
   // Get all posts (feed)

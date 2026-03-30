@@ -13,6 +13,7 @@ import PeaceOfMind from "@/pages/peace";
 import Profile from "@/pages/profile";
 import LoginPage from "@/pages/login";
 import ForgotPasswordPage from "@/pages/forgot-password";
+import GoogleCallback from "@/pages/google-callback";
 import AppLayout from "@/components/app-layout";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider, useAuth } from "@/lib/auth";
@@ -40,6 +41,7 @@ function AppRouter() {
     return (
       <Switch>
         <Route path="/forgot-password" component={ForgotPasswordPage} />
+        <Route path="/google-callback" component={GoogleCallback} />
         <Route><LoginPage /></Route>
       </Switch>
     );

@@ -19,6 +19,8 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (data: { email: string; password: string; displayName: string; username: string }) => Promise<void>;
+  googleLogin: () => Promise<void>;
+  handleGoogleCallback: (token: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -68,6 +70,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryClient.clear();
   }, []);
 
+  const googleLogin = useCallback(async () => {
+    const res = await apiRequest("GET", "/api/auth/google");
+    const data = await res.json();
+    if (data.url) {
+      window.location.href = data.url;
+    } else {
+      throw new Error(data.error || "Could not initiate Google login");
+    }
+  }, []);
+
+  const handleGoogleCallback = useCallback(async (token: string) => {
+    const res = await apiRequest("POST", "/api/auth/google/token", { accessToken: token });
+    const data = await res.json();
+    if (data.token) {
+      setAuthToken(data.token);
+    }
+    setUser(data.user);
+    queryClient.clear();
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await apiRequest("POST", "/api/auth/logout");
@@ -80,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, googleLogin, handleGoogleCallback, logout }}>
       {children}
     </AuthContext.Provider>
   );
