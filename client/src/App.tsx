@@ -9,6 +9,7 @@ import Feed from "@/pages/feed";
 import CreatePost from "@/pages/create-post";
 import Leaderboard from "@/pages/leaderboard";
 import Shop from "@/pages/shop";
+import PeaceOfMind from "@/pages/peace";
 import Profile from "@/pages/profile";
 import LoginPage from "@/pages/login";
 import ForgotPasswordPage from "@/pages/forgot-password";
@@ -51,6 +52,7 @@ function AppRouter() {
         <Route path="/create" component={CreatePost} />
         <Route path="/leaderboard" component={Leaderboard} />
         <Route path="/shop" component={Shop} />
+        <Route path="/peace" component={PeaceOfMind} />
         <Route path="/profile/:id" component={Profile} />
         <Route component={NotFound} />
       </Switch>

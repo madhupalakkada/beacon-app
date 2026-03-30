@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Home, PlusCircle, Trophy, ShoppingBag, User, Sun, Moon, LogOut } from "lucide-react";
+import { Home, PlusCircle, Trophy, ShoppingBag, Brain, User, Sun, Moon, LogOut } from "lucide-react";
 import { useTheme } from "./theme-provider";
 import { useAuth } from "@/lib/auth";
 import { PerplexityAttribution } from "./PerplexityAttribution";
@@ -17,6 +17,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: "/", label: "Feed", icon: Home },
     { href: "/create", label: "Post", icon: PlusCircle },
     { href: "/leaderboard", label: "Bliss", icon: Trophy },
+    { href: "/peace", label: "Peace", icon: Brain },
     { href: "/shop", label: "Shop", icon: ShoppingBag },
     { href: user ? `/profile/${user.id}` : "/", label: "Me", icon: User },
   ];

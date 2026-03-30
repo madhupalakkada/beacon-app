@@ -522,5 +522,107 @@ export async function registerRoutes(
     res.json(amazonProducts);
   });
 
+  // ═══ PEACE OF MIND (Anonymous Problems & Solutions) ═════
+
+  // Get all problems
+  app.get("/api/problems", async (_req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from("problems")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) {
+        // If table doesn't exist, return empty
+        return res.json([]);
+      }
+      res.json(data || []);
+    } catch {
+      res.json([]);
+    }
+  });
+
+  // Create anonymous problem
+  app.post("/api/problems", async (req, res) => {
+    try {
+      const authUser = await getAuthUser(req);
+      if (!authUser) return res.status(401).json({ error: "Not authenticated" });
+      const { title, description, category } = req.body;
+      if (!title || !description) {
+        return res.status(400).json({ error: "Title and description are required" });
+      }
+      const userStorage = getUserStorage(req);
+      const { data, error } = await (userStorage as any).supabase
+        .from("problems")
+        .insert({
+          user_id: authUser.id,
+          title,
+          description,
+          category: category || "General",
+          created_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to create problem" });
+    }
+  });
+
+  // Get comments for a problem
+  app.get("/api/problems/:id/comments", async (req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from("problem_comments")
+        .select("*")
+        .eq("problem_id", req.params.id)
+        .order("created_at", { ascending: true });
+      if (error) return res.json([]);
+
+      // Get profile display names for non-anonymous comments
+      const profiles = await storage.getAllProfiles();
+      const profileMap = new Map(profiles.map(p => [p.id, p]));
+
+      const enriched = (data || []).map((c: any) => {
+        // Check if this commenter is the original problem poster
+        // We don't reveal identity - just mark as "Original Poster"
+        return {
+          ...c,
+          author_name: c.is_anonymous ? "Anonymous" : (profileMap.get(c.user_id)?.display_name || "Member"),
+        };
+      });
+      res.json(enriched);
+    } catch {
+      res.json([]);
+    }
+  });
+
+  // Add comment to a problem
+  app.post("/api/problems/:id/comments", async (req, res) => {
+    try {
+      const authUser = await getAuthUser(req);
+      if (!authUser) return res.status(401).json({ error: "Not authenticated" });
+      const { message, isAnonymous } = req.body;
+      if (!message) return res.status(400).json({ error: "Message is required" });
+
+      const userStorage = getUserStorage(req);
+      const { data, error } = await (userStorage as any).supabase
+        .from("problem_comments")
+        .insert({
+          problem_id: req.params.id,
+          user_id: authUser.id,
+          message,
+          is_anonymous: isAnonymous ?? false,
+          created_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to add comment" });
+    }
+  });
+
   return httpServer;
 }
