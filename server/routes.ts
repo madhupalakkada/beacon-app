@@ -216,44 +216,53 @@ export async function registerRoutes(
     res.json({ exists: true, displayName: profile.display_name });
   });
 
-  // Reset password
-  app.post("/api/auth/reset-password", async (req, res) => {
+  // Send password reset email (secure - requires user to verify via email)
+  app.post("/api/auth/send-reset-email", async (req, res) => {
     try {
-      const { email, newPassword } = req.body;
-      if (!email || !newPassword) {
-        return res.status(400).json({ error: "Email and new password are required" });
+      const { email } = req.body;
+      if (!email) return res.status(400).json({ error: "Email is required" });
+
+      // Check if account exists first
+      const profile = await storage.getProfileByEmail(email.toLowerCase());
+      if (!profile) {
+        return res.status(404).json({ error: "No account found with this email address" });
+      }
+
+      // Send reset email via Supabase — user must click the link in their email
+      const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase(), {
+        redirectTo: `${req.headers.origin || 'http://localhost:5000'}/#/reset-password`,
+      });
+      if (error) {
+        return res.status(500).json({ error: "Could not send reset email: " + error.message });
+      }
+      res.json({ ok: true, displayName: profile.display_name });
+    } catch {
+      res.status(500).json({ error: "Password reset failed" });
+    }
+  });
+
+  // Update password (called after user verifies via email link)
+  app.post("/api/auth/update-password", async (req, res) => {
+    try {
+      const { accessToken, newPassword } = req.body;
+      if (!accessToken || !newPassword) {
+        return res.status(400).json({ error: "Token and new password are required" });
       }
       if (newPassword.length < 6) {
         return res.status(400).json({ error: "Password must be at least 6 characters" });
       }
 
-      // Use admin client if available (service_role key)
-      if (supabaseAdmin) {
-        try {
-          const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-          if (!listError && users) {
-            const authUser = users.find((u: any) => u.email === email.toLowerCase());
-            if (authUser) {
-              const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(authUser.id, {
-                password: newPassword,
-              });
-              if (!updateError) return res.json({ ok: true });
-              return res.status(500).json({ error: "Could not update password: " + updateError.message });
-            }
-            return res.status(404).json({ error: "No account found with this email" });
-          }
-        } catch (adminErr: any) {
-          return res.status(500).json({ error: "Password reset failed: " + (adminErr.message || "admin error") });
-        }
-      }
-
-      // Fallback without admin key: sign in with a temporary password approach won't work
-      // Instead, return an error asking to set up the service role key
-      return res.status(500).json({ 
-        error: "Password reset requires the service role key. Please add SUPABASE_SERVICE_ROLE_KEY to your environment." 
+      // Use the access token from the email link to update the password
+      const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: `Bearer ${accessToken}` } },
       });
+      const { error } = await userClient.auth.updateUser({ password: newPassword });
+      if (error) {
+        return res.status(400).json({ error: "Could not update password: " + error.message });
+      }
+      res.json({ ok: true });
     } catch {
-      res.status(500).json({ error: "Password reset failed" });
+      res.status(500).json({ error: "Password update failed" });
     }
   });
 
