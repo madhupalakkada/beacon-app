@@ -1,7 +1,7 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage, SupabaseStorage, type Post, type Profile } from "./storage";
-import { supabase, supabaseUrl, supabaseAnonKey } from "./supabase";
+import { supabase, supabaseAdmin, supabaseUrl, supabaseAnonKey } from "./supabase";
 import { createClient } from "@supabase/supabase-js";
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -227,28 +227,31 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Password must be at least 6 characters" });
       }
 
-      // Try admin API (requires service_role key — may not be available)
-      try {
-        const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
-        if (!listError && users) {
-          const authUser = users.find((u: any) => u.email === email.toLowerCase());
-          if (authUser) {
-            const { error: updateError } = await supabase.auth.admin.updateUserById(authUser.id, {
-              password: newPassword,
-            });
-            if (!updateError) return res.json({ ok: true });
+      // Use admin client if available (service_role key)
+      if (supabaseAdmin) {
+        try {
+          const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+          if (!listError && users) {
+            const authUser = users.find((u: any) => u.email === email.toLowerCase());
+            if (authUser) {
+              const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(authUser.id, {
+                password: newPassword,
+              });
+              if (!updateError) return res.json({ ok: true });
+              return res.status(500).json({ error: "Could not update password: " + updateError.message });
+            }
+            return res.status(404).json({ error: "No account found with this email" });
           }
+        } catch (adminErr: any) {
+          return res.status(500).json({ error: "Password reset failed: " + (adminErr.message || "admin error") });
         }
-      } catch {
-        // Admin API not available, fall through to email reset
       }
 
-      // Fallback: send password reset email
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.toLowerCase());
-      if (resetError) {
-        return res.status(500).json({ error: "Password reset failed" });
-      }
-      res.json({ ok: true, emailSent: true });
+      // Fallback without admin key: sign in with a temporary password approach won't work
+      // Instead, return an error asking to set up the service role key
+      return res.status(500).json({ 
+        error: "Password reset requires the service role key. Please add SUPABASE_SERVICE_ROLE_KEY to your environment." 
+      });
     } catch {
       res.status(500).json({ error: "Password reset failed" });
     }
