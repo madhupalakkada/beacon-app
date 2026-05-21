@@ -2,11 +2,30 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 const API_BASE = "__PORT_5000__".startsWith("__") ? "" : "__PORT_5000__";
 
-// Token store — persisted in module scope (NOT localStorage/sessionStorage)
+// Token store — try sessionStorage first (for local dev), fall back to memory
+// In the deployed sandbox iframe, sessionStorage may throw - that's fine, we use memory
 let authToken: string | null = null;
+const STORAGE_KEY = "beacon_auth_token";
+
+// Try to restore from sessionStorage on load
+try {
+  const stored = globalThis.sessionStorage?.getItem(STORAGE_KEY);
+  if (stored) authToken = stored;
+} catch {
+  // sessionStorage not available - that's fine
+}
 
 export function setAuthToken(token: string | null) {
   authToken = token;
+  try {
+    if (token) {
+      globalThis.sessionStorage?.setItem(STORAGE_KEY, token);
+    } else {
+      globalThis.sessionStorage?.removeItem(STORAGE_KEY);
+    }
+  } catch {
+    // sessionStorage not available - that's fine, we still have memory
+  }
 }
 
 export function getAuthToken(): string | null {
