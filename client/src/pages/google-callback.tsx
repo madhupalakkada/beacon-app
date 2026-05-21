@@ -11,7 +11,6 @@ export default function GoogleCallback() {
   useEffect(() => {
     (async () => {
       try {
-        // Extract token from the URL - URL format: http://localhost:5000/#/google-callback?token=eyJ...
         const fullUrl = window.location.href;
         const tokenMatch = fullUrl.match(/[?&]token=([^&]+)/);
         const token = tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
@@ -20,7 +19,6 @@ export default function GoogleCallback() {
           setStatus("Verifying your account...");
           await handleGoogleCallback(token);
           setStatus("Welcome! Redirecting...");
-          // Small delay so user sees success, then navigate
           setTimeout(() => setLocation("/"), 300);
         } else {
           setError("No authentication token received.");
