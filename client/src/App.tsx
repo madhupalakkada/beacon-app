@@ -29,7 +29,12 @@ function AppRouter() {
           <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center mx-auto">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-label="Beacon logo">
               <circle cx="12" cy="12" r="4" fill="white" />
-              <path d="M12 2v4M12 18v4M2 12h4M18 12h4M5.64 5.64l2.83 2.83M15.54 15.54l2.83 2.83M5.64 18.36l2.83-2.83M15.54 8.46l2.83-2.83" stroke="white" strokeWidth="2" strokeLinecap="round" />
+              <path
+                d="M12 2v4M12 18v4M2 12h4M18 12h4M5.64 5.64l2.83 2.83M15.54 15.54l2.83 2.83M5.64 18.36l2.83-2.83M15.54 8.46l2.83-2.83"
+                stroke="white"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
             </svg>
           </div>
           <p className="text-sm text-muted-foreground">Loading Beacon...</p>
@@ -44,7 +49,9 @@ function AppRouter() {
         <Route path="/forgot-password" component={ForgotPasswordPage} />
         <Route path="/reset-password" component={ResetPasswordPage} />
         <Route path="/google-callback" component={GoogleCallback} />
-        <Route><LoginPage /></Route>
+        <Route>
+          <LoginPage />
+        </Route>
       </Switch>
     );
   }
@@ -53,6 +60,7 @@ function AppRouter() {
     <AppLayout>
       <Switch>
         <Route path="/" component={Feed} />
+        <Route path="/feed" component={Feed} />
         <Route path="/create" component={CreatePost} />
         <Route path="/leaderboard" component={Leaderboard} />
         <Route path="/shop" component={Shop} />
