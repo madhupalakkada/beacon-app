@@ -30,6 +30,21 @@ function getUserStorage(req: Request): SupabaseStorage {
   return storage as SupabaseStorage;
 }
 
+// Storage for creating a profile that respects RLS:
+// prefer the service-role admin client when available; otherwise fall back
+// to a user-scoped client built from the verified access token so the
+// authenticated user inserts their own row under RLS.
+function getProfileWriteStorage(accessToken: string): SupabaseStorage {
+  if (supabaseAdmin) {
+    return new SupabaseStorage(supabaseAdmin);
+  }
+  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
+    ...realtimeTransport,
+  });
+  return new SupabaseStorage(userClient);
+}
+
 // Convert snake_case DB post → camelCase for frontend
 function normalizePost(p: Post) {
   return {
@@ -123,8 +138,36 @@ export async function registerRoutes(
         return res.status(500).json({ error: "Registration failed" });
       }
 
-      // Create profile row
-      const profile = await storage.createProfile({
+      // Resolve a session token if signUp didn't return one (auto-confirm off).
+      // We need one to build a user-scoped Supabase client when no admin key
+      // is configured, so the profile insert satisfies RLS.
+      let sessionToken = authData.session?.access_token ?? "";
+      let needsConfirmation = false;
+      if (!sessionToken) {
+        const { data: loginData } = await supabase.auth.signInWithPassword({
+          email: email.toLowerCase(),
+          password,
+        });
+        if (loginData?.session) {
+          sessionToken = loginData.session.access_token;
+        } else {
+          needsConfirmation = true;
+        }
+      }
+
+      // If we have no admin key AND no session token, we cannot insert the
+      // profile row without violating RLS. Surface a clear error rather than
+      // creating an orphan auth user with no profile.
+      if (!supabaseAdmin && !sessionToken) {
+        return res.status(500).json({
+          error: "Cannot create profile: email confirmation is required but no service role key is configured.",
+        });
+      }
+
+      // Create profile row using either the admin client or a user-scoped
+      // client built from the verified access token — both honor RLS.
+      const writeStorage = getProfileWriteStorage(sessionToken);
+      const profile = await writeStorage.createProfile({
         id: authData.user.id,
         username: username.toLowerCase(),
         display_name: displayName,
@@ -134,20 +177,7 @@ export async function registerRoutes(
         location: null,
       });
 
-      // Get session token — auto-confirm should be enabled
-      if (!authData.session) {
-        // Try signing in directly (works when auto-confirm is on)
-        const { data: loginData } = await supabase.auth.signInWithPassword({
-          email: email.toLowerCase(),
-          password,
-        });
-        if (loginData?.session) {
-          return res.json({
-            user: normalizeProfile(profile),
-            token: loginData.session.access_token,
-          });
-        }
-        // Account created but email confirmation needed
+      if (needsConfirmation) {
         return res.json({
           user: normalizeProfile(profile),
           token: "",
@@ -157,7 +187,7 @@ export async function registerRoutes(
 
       res.json({
         user: normalizeProfile(profile),
-        token: authData.session.access_token,
+        token: sessionToken,
       });
     } catch (err: any) {
       console.error("Registration error:", err);
@@ -355,12 +385,15 @@ export async function registerRoutes(
       // Check if profile exists
       let profile = await storage.getProfile(authUser.id);
       if (!profile) {
-        // Create profile from Google data
+        // Create profile from Google data using either the admin client or a
+        // user-scoped client built from the verified access token so the
+        // insert satisfies RLS (the anon client cannot insert into profiles).
         const email = authUser.email || "";
         const displayName = authUser.user_metadata?.full_name || authUser.user_metadata?.name || email.split("@")[0];
         const username = email.split("@")[0].toLowerCase().replace(/[^a-z0-9]/g, "") + Math.floor(Math.random() * 1000);
 
-        profile = await storage.createProfile({
+        const writeStorage = getProfileWriteStorage(accessToken);
+        profile = await writeStorage.createProfile({
           id: authUser.id,
           username,
           display_name: displayName,
