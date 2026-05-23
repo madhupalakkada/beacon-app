@@ -22,21 +22,37 @@ export default function ResetPasswordPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Extract the access token from the URL hash (Supabase puts it there after email verification)
+  // Extract the access token from sessionStorage (captured in main.tsx) or the URL hash.
+  // Supabase recovery links look like: /#/reset-password#access_token=...&type=recovery
   useEffect(() => {
-    // The URL will look like: /#/reset-password#access_token=xxx&type=recovery
+    // 1. Preferred: tokens stashed by the recovery handler in main.tsx
+    try {
+      const stashed = sessionStorage.getItem("supabase.recovery");
+      if (stashed) {
+        const payload = JSON.parse(stashed) as Record<string, string>;
+        if (payload.type === "recovery" && payload.access_token) {
+          setAccessToken(payload.access_token);
+          sessionStorage.removeItem("supabase.recovery");
+          return;
+        }
+      }
+    } catch {
+      // ignore parse errors and fall through to URL parsing
+    }
+
+    // 2. Fallback: parse the URL hash directly (handles edge cases where main.tsx didn't run early enough)
     const fullHash = window.location.hash;
-    // After the route part, look for access_token
-    const parts = fullHash.split("access_token=");
-    if (parts.length > 1) {
-      const token = parts[1].split("&")[0];
+    const secondHashIdx = fullHash.indexOf("#", fullHash.indexOf("#") + 1);
+    if (secondHashIdx !== -1) {
+      const params = new URLSearchParams(fullHash.slice(secondHashIdx + 1));
+      const token = params.get("access_token");
       if (token) {
         setAccessToken(token);
         return;
       }
     }
 
-    // Also check if token is in the query string after the hash route
+    // 3. Fallback: token in query string after the route (e.g. ?access_token=...)
     const afterRoute = fullHash.includes("?") ? fullHash.split("?")[1] : "";
     const params = new URLSearchParams(afterRoute);
     const token = params.get("access_token") || params.get("token");
