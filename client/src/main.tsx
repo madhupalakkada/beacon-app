@@ -6,4 +6,6 @@ if (!window.location.hash) {
   window.location.hash = "#/";
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(
+  <App />
+);
