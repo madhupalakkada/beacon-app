@@ -22,22 +22,15 @@ export default function ResetPasswordPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Extract the access token from sessionStorage (captured in main.tsx) or the URL hash.
-  // Supabase recovery links look like: /#/reset-password#access_token=...&type=recovery
+  // Extract the access token from the in-memory window handoff (captured in main.tsx)
+  // or the URL hash. Supabase recovery links look like: /#/reset-password#access_token=...&type=recovery
   useEffect(() => {
-    // 1. Preferred: tokens stashed by the recovery handler in main.tsx
-    try {
-      const stashed = sessionStorage.getItem("supabase.recovery");
-      if (stashed) {
-        const payload = JSON.parse(stashed) as Record<string, string>;
-        if (payload.type === "recovery" && payload.access_token) {
-          setAccessToken(payload.access_token);
-          sessionStorage.removeItem("supabase.recovery");
-          return;
-        }
-      }
-    } catch {
-      // ignore parse errors and fall through to URL parsing
+    // 1. Preferred: tokens stashed by the recovery handler in main.tsx on window
+    const stashed = window.__supabaseRecovery;
+    if (stashed && stashed.type === "recovery" && stashed.access_token) {
+      setAccessToken(stashed.access_token);
+      delete window.__supabaseRecovery;
+      return;
     }
 
     // 2. Fallback: parse the URL hash directly (handles edge cases where main.tsx didn't run early enough)
