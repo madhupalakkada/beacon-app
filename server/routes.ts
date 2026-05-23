@@ -250,23 +250,33 @@ export async function registerRoutes(
   // Update password (called after user verifies via email link)
   app.post("/api/auth/update-password", async (req, res) => {
     try {
-      const { accessToken, newPassword } = req.body;
-      if (!accessToken || !newPassword) {
+      const { accessToken, refreshToken, newPassword } = req.body;
+      if (!accessToken || !refreshToken || !newPassword) {
         return res.status(400).json({ error: "Token and new password are required" });
       }
       if (newPassword.length < 6) {
         return res.status(400).json({ error: "Password must be at least 6 characters" });
       }
 
-      // Use the access token from the email link to update the password
+      // updateUser requires an established session, not just a bearer header.
+      // Build an isolated client and hydrate it with the recovery tokens via
+      // setSession; then updateUser can read the session and apply the change.
       const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-        global: { headers: { Authorization: `Bearer ${accessToken}` } },
+        auth: { autoRefreshToken: false, persistSession: false },
         ...realtimeTransport,
       });
+      const { error: sessionError } = await userClient.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+      if (sessionError) {
+        return res.status(400).json({ error: "Could not update password: " + sessionError.message });
+      }
       const { error } = await userClient.auth.updateUser({ password: newPassword });
       if (error) {
         return res.status(400).json({ error: "Could not update password: " + error.message });
       }
+      await userClient.auth.signOut();
       res.json({ ok: true });
     } catch {
       res.status(500).json({ error: "Password update failed" });

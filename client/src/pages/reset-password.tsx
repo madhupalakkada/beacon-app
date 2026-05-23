@@ -16,6 +16,7 @@ export default function ResetPasswordPage() {
   const [step, setStep] = useState<Step>("form");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -27,8 +28,9 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     // 1. Preferred: tokens stashed by the recovery handler in main.tsx on window
     const stashed = window.__supabaseRecovery;
-    if (stashed && stashed.type === "recovery" && stashed.access_token) {
+    if (stashed && stashed.type === "recovery" && stashed.access_token && stashed.refresh_token) {
       setAccessToken(stashed.access_token);
+      setRefreshToken(stashed.refresh_token);
       delete window.__supabaseRecovery;
       return;
     }
@@ -39,8 +41,10 @@ export default function ResetPasswordPage() {
     if (secondHashIdx !== -1) {
       const params = new URLSearchParams(fullHash.slice(secondHashIdx + 1));
       const token = params.get("access_token");
-      if (token) {
+      const refresh = params.get("refresh_token");
+      if (token && refresh) {
         setAccessToken(token);
+        setRefreshToken(refresh);
         return;
       }
     }
@@ -49,23 +53,26 @@ export default function ResetPasswordPage() {
     const afterRoute = fullHash.includes("?") ? fullHash.split("?")[1] : "";
     const params = new URLSearchParams(afterRoute);
     const token = params.get("access_token") || params.get("token");
-    if (token) {
+    const refresh = params.get("refresh_token");
+    if (token && refresh) {
       setAccessToken(token);
+      setRefreshToken(refresh);
       return;
     }
 
-    // No token found
+    // No tokens found
     setStep("error");
     setErrorMessage("Invalid or expired reset link. Please request a new password reset.");
   }, []);
 
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!accessToken || !newPassword || newPassword !== confirmPassword) return;
+    if (!accessToken || !refreshToken || !newPassword || newPassword !== confirmPassword) return;
     setIsSubmitting(true);
     try {
       const res = await apiRequest("POST", "/api/auth/update-password", {
         accessToken,
+        refreshToken,
         newPassword,
       });
       const data = await res.json();
@@ -111,7 +118,7 @@ export default function ResetPasswordPage() {
         )}
 
         {/* Set new password form */}
-        {step === "form" && accessToken && (
+        {step === "form" && accessToken && refreshToken && (
           <>
             <div className="text-center mb-6">
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
