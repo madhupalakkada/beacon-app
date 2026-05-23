@@ -3,6 +3,10 @@ import { createServer, type Server } from "http";
 import { storage, SupabaseStorage, type Post, type Profile } from "./storage";
 import { supabase, supabaseAdmin, supabaseUrl, supabaseAnonKey } from "./supabase";
 import { createClient } from "@supabase/supabase-js";
+import ws from "ws";
+
+// Node 20 lacks native WebSocket; Supabase Realtime needs an explicit transport.
+const realtimeTransport = { realtime: { transport: ws as any } };
 
 // ─── Helpers ─────────────────────────────────────────────
 
@@ -13,6 +17,7 @@ function getUserClient(req: Request) {
   const token = authHeader.slice(7);
   return createClient(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } },
+    ...realtimeTransport,
   });
 }
 
@@ -66,6 +71,7 @@ async function getAuthUser(req: any): Promise<{ id: string } | null> {
 
   const userClient = createClient(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } },
+    ...realtimeTransport,
   });
   const { data, error } = await userClient.auth.getUser(token);
   if (error || !data.user) return null;
@@ -255,6 +261,7 @@ export async function registerRoutes(
       // Use the access token from the email link to update the password
       const userClient = createClient(supabaseUrl, supabaseAnonKey, {
         global: { headers: { Authorization: `Bearer ${accessToken}` } },
+        ...realtimeTransport,
       });
       const { error } = await userClient.auth.updateUser({ password: newPassword });
       if (error) {
@@ -327,6 +334,7 @@ export async function registerRoutes(
       // Verify the token with Supabase
       const userClient = createClient(supabaseUrl, supabaseAnonKey, {
         global: { headers: { Authorization: `Bearer ${accessToken}` } },
+        ...realtimeTransport,
       });
       const { data: userData, error: userError } = await userClient.auth.getUser(accessToken);
       if (userError || !userData.user) {
