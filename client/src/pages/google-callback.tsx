@@ -11,20 +11,28 @@ export default function GoogleCallback() {
   useEffect(() => {
     (async () => {
       try {
-        const fullUrl = window.location.href;
-        const tokenMatch = fullUrl.match(/[?&]token=([^&]+)/);
-        const token = tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
+        // Preferred: token stashed by main.tsx before the router ran.
+        let token: string | null = null;
+        if (window.__googleCallback?.token) {
+          token = window.__googleCallback.token;
+          delete window.__googleCallback;
+        } else {
+          // Fallback: parse the token straight off the URL in case main.tsx
+          // didn't catch it (e.g. direct navigation in dev).
+          const fullUrl = window.location.href;
+          const tokenMatch = fullUrl.match(/[?&]token=([^&#]+)/);
+          token = tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
+        }
 
         if (token) {
           setStatus("Verifying your account...");
           await handleGoogleCallback(token);
           setStatus("Welcome! Redirecting...");
-          setTimeout(() => setLocation("/"), 300);
+          setLocation("/");
         } else {
           setError("No authentication token received.");
         }
       } catch (err: any) {
-        console.error("Google callback error:", err);
         setError(err.message || "Google sign-in failed");
       }
     })();
